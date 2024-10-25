@@ -20,6 +20,10 @@ namespace Tools.PxUtilsIntegrationTestTool
                 string url = ToolsUtilities.GetDataSourceUrl(dataSource);
                 string saveLocation = ResponseSaveLocation.SetSaveLocation(dataSource);
                 string[] queries = await File.ReadAllLinesAsync(Program.Config.Paths.QueriesFile);
+                for (int i = 0; i < queries.Length; i++)
+                {
+                    queries[i] = Path.GetFileNameWithoutExtension(queries[i]);
+                }
                 await StoreSqVisualizationResponses(saveLocation, queries, url);
                 await StoreSavedQueryResponses(saveLocation, queries, url);
                 await StoreSqMetaResponses(saveLocation, queries, url);
