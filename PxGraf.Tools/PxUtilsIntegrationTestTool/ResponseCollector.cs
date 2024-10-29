@@ -2,28 +2,37 @@
 using PxGraf.Models.Requests;
 using Newtonsoft.Json;
 using PxGraf.Utility;
+using System.Data.Common;
 
 
 namespace Tools.PxUtilsIntegrationTestTool
 {
-    internal class ResponseCollector : Command
+    internal class ResponseCollector(int? randomAmount = null) : Command
     {
         private readonly string[] _dataSources = [TokenConstants.DATASOURCE_PXUTILS, TokenConstants.DATASOURCE_PXWEBAPI, TokenConstants.DATASOURCE_OLD];
         private readonly JsonSerializerSettings _jsonConverterSettings = new();
+        private readonly int? _randomAmount = randomAmount;
 
         internal override async Task Start()
         {
             _jsonConverterSettings.Converters.Add(new MultilanguageStringConverter());
 
+            string[] queries = await File.ReadAllLinesAsync(Program.Config.Paths.QueriesFile);
+            for (int i = 0; i < queries.Length; i++)
+            {
+                queries[i] = Path.GetFileNameWithoutExtension(queries[i]);
+            }
+            if (_randomAmount.HasValue)
+            {
+                Random r = new();
+                queries = queries.OrderBy(x => r.Next()).Take(_randomAmount.Value).ToArray();
+                Console.WriteLine($"Random queries selected: {string.Join(", ", queries)}");
+            }
+
             foreach (string dataSource in _dataSources)
             {
                 string url = ToolsUtilities.GetDataSourceUrl(dataSource);
                 string saveLocation = ResponseSaveLocation.SetSaveLocation(dataSource);
-                string[] queries = await File.ReadAllLinesAsync(Program.Config.Paths.QueriesFile);
-                for (int i = 0; i < queries.Length; i++)
-                {
-                    queries[i] = Path.GetFileNameWithoutExtension(queries[i]);
-                }
                 await StoreSqVisualizationResponses(saveLocation, queries, url);
                 await StoreSavedQueryResponses(saveLocation, queries, url);
                 await StoreSqMetaResponses(saveLocation, queries, url);

@@ -59,6 +59,8 @@ namespace Tools.PxUtilsIntegrationTestTool
             _rejected = JsonConvert.DeserializeObject<Dictionary<string, string>>(await File.ReadAllTextAsync(rejectedPath)) ?? [];
             _whitelist = JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(await File.ReadAllTextAsync(whitelistPath)) ?? [];
 
+            bool skipReevaluations = false;
+
             foreach (string query in _queries)
             {
                 if (_accepted.Contains(query))
@@ -66,11 +68,15 @@ namespace Tools.PxUtilsIntegrationTestTool
                     Console.WriteLine($"Query: {query} has already been accepted.");
                     continue;
                 }
-                else if (_rejected.TryGetValue(query, out string? value))
+                else if (_rejected.TryGetValue(query, out string? value) && !skipReevaluations)
                 {
                     Console.WriteLine($"Query: {query} has been rejected. Reason: {value}. Do you want to re-evaluate this query? (y/n):");
                     if (!ToolsUtilities.GetBooleanAnswer())
+                    {
+                        Console.WriteLine("Do you want to skip re-evaluations for the rest of the queries? (y/n):");
+                        skipReevaluations = ToolsUtilities.GetBooleanAnswer();
                         continue;
+                    }
                 }
 
                 if (CompareResults(query, TokenConstants.RESPONSE_SQ) &&
@@ -81,8 +87,7 @@ namespace Tools.PxUtilsIntegrationTestTool
                     _accepted.Add(query);
                     await File.WriteAllLinesAsync(Path.Combine(_resultsLocation, TokenConstants.ACCEPTED_FILE), _accepted);
 
-                    if(_rejected.ContainsKey(query))
-                        _rejected.Remove(query);
+                    _rejected.Remove(query);
                     await File.WriteAllTextAsync(Path.Combine(_resultsLocation, TokenConstants.REJECTED_FILE), JsonConvert.SerializeObject(_rejected));
                 }
             }
@@ -100,7 +105,13 @@ namespace Tools.PxUtilsIntegrationTestTool
 
             if (!pxUtilsExists || !pxWebApiExists || !pxWebOldExists)
             {
-                string reason = !pxUtilsExists ? "PxUtils response file does not exist." : "";
+                if (!pxUtilsExists && !pxWebApiExists && !pxWebOldExists)
+                {
+                    // Console.WriteLine($"No responses for {query}. Skipping.");
+                    return false;
+                }
+                string reason = $"Reason: {responseToken}:";
+                reason += !pxUtilsExists ? " PxUtils response file does not exist." : "";
                 reason += !pxWebApiExists ? " PxWebApi response file does not exist." : "";
                 reason += !pxWebOldExists ? " PxWebOld response file does not exist." : "";
                 reason = reason.Trim();
@@ -159,7 +170,7 @@ namespace Tools.PxUtilsIntegrationTestTool
         {
             Console.WriteLine("Enter a reason for rejecting the response: ");
             string? reason = Console.ReadLine();
-            if (string.IsNullOrEmpty(reason))
+            if (reason is null || reason == string.Empty)
             {
                 Console.WriteLine("Invalid input. Try again.");
                 ReportRejection(query);
@@ -245,10 +256,17 @@ namespace Tools.PxUtilsIntegrationTestTool
                 Console.WriteLine($"{path} a is whitelisted exception");
                 return;
             }
-            if (token1.Value.Type != token2.Value.Type && !PromptWhitelisting(responseToken, path))
+            if (token1.Value.Type != token2.Value.Type)
             {
-                differences.Add($"Type mismatch at {path}: {token1.Value.Type} vs {token2.Value.Type} when comparing {token1.Key} and {token2.Key}");
-                return;
+                Console.WriteLine($"Type mismatch at {path}: {token1.Value.Type} vs {token2.Value.Type} when comparing {token1.Key} and {token2.Key}");
+                if (PromptWhitelisting(responseToken, path))
+                {
+                    return;
+                }
+                else
+                {
+                    differences.Add($"Type mismatch at {path}: {token1.Value.Type} vs {token2.Value.Type} when comparing {token1.Key} and {token2.Key}");
+                }
             }
 
             switch (token1.Value.Type)
@@ -271,6 +289,7 @@ namespace Tools.PxUtilsIntegrationTestTool
                     var arr2 = (JArray)token2.Value;
                     if (arr1.Count != arr2.Count)
                     {
+                        Console.WriteLine($"Array length mismatch at {path}: {arr1.Count} vs {arr2.Count} when comparing {token1.Key} and {token2.Key}");
                         if (!PromptWhitelisting(responseToken, path))
                         {
                             differences.Add($"Array length mismatch at {path}: {arr1.Count} vs {arr2.Count} when comparing {token1.Key} and {token2.Key}");
@@ -293,9 +312,13 @@ namespace Tools.PxUtilsIntegrationTestTool
                     break;
 
                 default:
-                    if (!JToken.DeepEquals(token1.Value, token2.Value) && !PromptWhitelisting(responseToken, path))
+                    if (!JToken.DeepEquals(token1.Value, token2.Value))
                     {
-                        differences.Add($"Value mismatch at {path}: {token1.Value} vs {token2.Value} when comparing {token1.Key} and {token2.Key}");
+                        Console.WriteLine($"Value mismatch at {path}: {token1.Value} vs {token2.Value} when comparing {token1.Key} and {token2.Key}");
+                        if (!PromptWhitelisting(responseToken, path))
+                        {
+                            differences.Add($"Value mismatch at {path}: {token1.Value} vs {token2.Value} when comparing {token1.Key} and {token2.Key}");
+                        }
                     }
                     break;
             }
@@ -308,10 +331,18 @@ namespace Tools.PxUtilsIntegrationTestTool
                 JToken item1 = arr1[i];
                 JToken item2 = arr2[i];
 
-                if (item1.Type != JTokenType.Float || item2.Type != JTokenType.Float)
+                bool item1IsNumber = item1.Type == JTokenType.Float || item1.Type == JTokenType.Integer;
+                bool item2IsNumber = item2.Type == JTokenType.Float || item2.Type == JTokenType.Integer;
+
+                if (item1IsNumber != item2IsNumber)
                 {
                     differences.Add($"Data type mismatch at {TokenConstants.DATA_PATH}[{i}]: {item1.Type} vs {item2.Type} when comparing {TokenConstants.RESPONSE_SQVISUALIZATION} and {TokenConstants.DATASOURCE_PXWEBAPI}");
-                    return;
+                    continue;
+                }
+
+                if (!item1IsNumber && !item2IsNumber)
+                {
+                    continue;
                 }
 
                 decimal value1 = item1.Value<decimal>();
@@ -326,7 +357,7 @@ namespace Tools.PxUtilsIntegrationTestTool
 
                 if (roundedValue1 != roundedValue2)
                 {
-                    differences.Add($"Data mismatch at {TokenConstants.DATA_PATH}[{i}]: {value1} vs {value2} when comparing {TokenConstants.RESPONSE_SQVISUALIZATION} and {TokenConstants.DATASOURCE_PXWEBAPI}");
+                    differences.Add($"Data mismatch at {TokenConstants.DATA_PATH}[{i}]: {value1} vs {value2} when comparing {TokenConstants.RESPONSE_SQVISUALIZATION}");
                 }
             }
         }

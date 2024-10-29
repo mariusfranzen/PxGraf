@@ -3,7 +3,7 @@ using Tools.PxUtilsIntegrationTestTool;
 
 namespace Tools
 {
-    internal class Program
+    internal static class Program
     {
         internal static Configuration Config;
 
@@ -19,21 +19,34 @@ namespace Tools
             do
             {
                 Console.WriteLine("Select an option:");
-                Console.WriteLine("1. Collect responses from PxGraf instances");
-                Console.WriteLine("2. Compare responses");
-                Console.WriteLine("3. Exit");
-                option = ToolsUtilities.GetNumericAnswer(3);
-                if (option == 1)
+                Console.WriteLine("1. Collect all responses from PxGraf instances");
+                Console.WriteLine("2. Collect X random responses from PxGraf instances");
+                Console.WriteLine("3. Compare responses");
+                Console.WriteLine("4. Exit");
+                option = ToolsUtilities.GetNumericAnswer(4);
+                switch (option)
                 {
-                    ResponseCollector responseCollector = new();
-                    await responseCollector.Start();
+                    case 1:
+                        ResponseCollector responseCollector = new();
+                        await responseCollector.Start();
+                        break;
+                    case 2:
+                        Console.WriteLine("Enter the number of random responses to collect:");
+                        int randomAmount = ToolsUtilities.GetNumericAnswer(int.MaxValue);
+                        ResponseCollector randomResponseCollector = new(randomAmount);
+                        await randomResponseCollector.Start();
+                        break;
+                    case 3:
+                        ResponseComparer responseComparer = new();
+                        await responseComparer.Start();
+                        break;
+                    default:
+                        break;
                 }
-                else
-                {
-                    ResponseComparer responseComparer = new();
-                    await responseComparer.Start();
-                }
-            } while (option != 3);
+            } while (option != 4);
+
+            Console.WriteLine("Exiting...");
+            return;
         }
     }
 }
