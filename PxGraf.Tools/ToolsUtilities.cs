@@ -62,5 +62,13 @@ namespace Tools
                 _ => throw new ArgumentException("Invalid data source"),
             };
         }
+
+        internal static void DeleteDirectory(string path)
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, true);
+            }
+        }
     }
 }

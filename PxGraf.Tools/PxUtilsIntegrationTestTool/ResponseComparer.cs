@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.Drawing;
 
 namespace Tools.PxUtilsIntegrationTestTool
 {
@@ -16,8 +17,13 @@ namespace Tools.PxUtilsIntegrationTestTool
             InitiateResults();
             _responseLocation = Program.Config.Paths.ResponseDirectory;
             _queries = await File.ReadAllLinesAsync(Program.Config.Paths.QueriesFile);
+            for (int i = 0; i < _queries.Length; i++)
+            {
+                _queries[i] = Path.GetFileNameWithoutExtension(_queries[i]);
+            }
 
             await IterateResponses();
+            ToolsUtilities.DeleteDirectory(Path.Combine(_resultsLocation, "temp"));
         }
 
         private void InitiateResults()
@@ -88,6 +94,21 @@ namespace Tools.PxUtilsIntegrationTestTool
             string pxWebApiPath = Path.Combine(_responseLocation, TokenConstants.DATASOURCE_PXWEBAPI, responseToken, query + ".json");
             string pxWebOldPath = Path.Combine(_responseLocation, TokenConstants.DATASOURCE_OLD, responseToken, query + ".json");
 
+            bool pxUtilsExists = File.Exists(pxUtilsPath);
+            bool pxWebApiExists = File.Exists(pxWebApiPath);
+            bool pxWebOldExists = File.Exists(pxWebOldPath);
+
+            if (!pxUtilsExists || !pxWebApiExists || !pxWebOldExists)
+            {
+                string reason = !pxUtilsExists ? "PxUtils response file does not exist." : "";
+                reason += !pxWebApiExists ? " PxWebApi response file does not exist." : "";
+                reason += !pxWebOldExists ? " PxWebOld response file does not exist." : "";
+                reason = reason.Trim();
+                Console.WriteLine($"Query: {query} has been rejected. Reason: {reason}");
+                TryAddRejection(query, reason);
+                return false;
+            }
+
             string pxUtilsResponse = File.ReadAllText(pxUtilsPath);
             string pxWebApiResponse = File.ReadAllText(pxWebApiPath);
             string pxWebOldResponse = File.ReadAllText(pxWebOldPath);
@@ -98,14 +119,14 @@ namespace Tools.PxUtilsIntegrationTestTool
 
             if (pxUtilsResponse != pxWebApiResponse &&
                 CompareDeserializedObjects(pxUtils, pxWebApi, responseToken) > 0 &&
-                DifferenceControls(query, pxUtilsPath, pxWebApiPath, responseToken))
+                DifferenceControls(query, pxUtilsPath, pxWebApiPath, responseToken, TokenConstants.DATASOURCE_PXUTILS, TokenConstants.DATASOURCE_PXWEBAPI))
             {
                 return false;
             }
 
             if (pxUtilsResponse != pxWebOldResponse &&
                 CompareDeserializedObjects(pxUtils, pxWebOld, responseToken) > 0 &&
-                DifferenceControls(query, pxUtilsPath, pxWebOldPath, responseToken))
+                DifferenceControls(query, pxUtilsPath, pxWebOldPath, responseToken, TokenConstants.DATASOURCE_PXUTILS, TokenConstants.DATASOURCE_OLD))
             {
                 return false;
             }
@@ -113,7 +134,7 @@ namespace Tools.PxUtilsIntegrationTestTool
             return true;
         }
 
-        private bool DifferenceControls(string query, string resp1, string resp2, string responseToken)
+        private bool DifferenceControls(string query, string resp1, string resp2, string responseToken, string name1, string name2)
         {
             Console.WriteLine($"Select an option to handle {responseToken} response for {query}:");
             Console.WriteLine("1. Open diff in VSCode editor");
@@ -123,8 +144,8 @@ namespace Tools.PxUtilsIntegrationTestTool
             switch (option)
             {
                 case 1:
-                    OpenDiffInEditor(resp1, resp2);
-                    return DifferenceControls(query, resp1, resp2, responseToken);
+                    OpenDiffInEditor(resp1, resp2, query, name1, name2);
+                    return DifferenceControls(query, resp1, resp2, responseToken, name1, name2);
                 case 2:
                     return false;
                 case 3:
@@ -143,6 +164,11 @@ namespace Tools.PxUtilsIntegrationTestTool
                 Console.WriteLine("Invalid input. Try again.");
                 ReportRejection(query);
             }
+            TryAddRejection(query, reason);
+        }
+        
+        private void TryAddRejection(string query, string reason)
+        {
             if (!_rejected.TryAdd(query, reason))
             {
                 _rejected[query] = reason;
@@ -150,7 +176,7 @@ namespace Tools.PxUtilsIntegrationTestTool
             File.WriteAllText(Path.Combine(_resultsLocation, TokenConstants.REJECTED_FILE), JsonConvert.SerializeObject(_rejected));
         }
 
-        private static void OpenDiffInEditor(string resp1, string resp2)
+        private void OpenDiffInEditor(string resp1, string resp2, string query, string name1, string name2)
         {
             string json1 = File.ReadAllText(resp1);
             string json2 = File.ReadAllText(resp2);
@@ -158,8 +184,10 @@ namespace Tools.PxUtilsIntegrationTestTool
             string formattedJson1 = JToken.Parse(json1).ToString(Formatting.Indented);
             string formattedJson2 = JToken.Parse(json2).ToString(Formatting.Indented);
 
-            string temp1 = $"diff1-temp.json";
-            string temp2 = $"diff2-temp.json";
+            if (!Directory.Exists($"{_resultsLocation}\\temp")) Directory.CreateDirectory($"{_resultsLocation}\\temp");
+
+            string temp1 = $"{_resultsLocation}\\temp\\diff-{name1}-for-{query}-temp.json";
+            string temp2 = $"{_resultsLocation}\\temp\\diff-{name2}-for-{query}-temp.json";
 
             File.WriteAllText(temp1, formattedJson1);
             File.WriteAllText(temp2, formattedJson2);
@@ -176,10 +204,6 @@ namespace Tools.PxUtilsIntegrationTestTool
                 }
             };
             process.Start();
-
-            process.WaitForExit();
-            File.Delete(temp1);
-            File.Delete(temp2);
         }
 
         private int CompareDeserializedObjects(KeyValuePair<string, string> resp1, KeyValuePair<string, string> resp2, string responseToken)
@@ -216,15 +240,14 @@ namespace Tools.PxUtilsIntegrationTestTool
 
         private void CompareJTokens(KeyValuePair<string, JToken> token1, KeyValuePair<string, JToken> token2, List<string> differences, string path, string responseToken)
         {
-            if (token1.Value.Type != token2.Value.Type)
-            {
-                differences.Add($"Type mismatch at {path}: {token1.Value.Type} vs {token2.Value.Type} when comparing {token1.Key} and {token2.Key}");
-                return;
-            }
-
             if (_whitelist.TryGetValue(responseToken, out List<string>? whitelist) && whitelist.Contains(path))
             {
                 Console.WriteLine($"{path} a is whitelisted exception");
+                return;
+            }
+            if (token1.Value.Type != token2.Value.Type && !PromptWhitelisting(responseToken, path))
+            {
+                differences.Add($"Type mismatch at {path}: {token1.Value.Type} vs {token2.Value.Type} when comparing {token1.Key} and {token2.Key}");
                 return;
             }
 
