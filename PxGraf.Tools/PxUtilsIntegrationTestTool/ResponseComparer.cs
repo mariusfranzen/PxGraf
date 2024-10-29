@@ -1,6 +1,5 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using System.Drawing;
 
 namespace Tools.PxUtilsIntegrationTestTool
 {
@@ -275,20 +274,17 @@ namespace Tools.PxUtilsIntegrationTestTool
         {
             if (_whitelist.TryGetValue(responseToken, out List<string>? whitelist) && whitelist.Contains(path))
             {
-                Console.WriteLine($"{path} a is whitelisted exception");
+                Console.WriteLine($"{path} is a whitelisted exception");
                 return;
             }
             if (token1.Value.Type != token2.Value.Type)
             {
                 Console.WriteLine($"Type mismatch at {path}: {token1.Value.Type} vs {token2.Value.Type} when comparing {token1.Key} and {token2.Key}");
-                if (PromptWhitelisting(responseToken, path))
-                {
-                    return;
-                }
-                else
+                if (!PromptWhitelisting(responseToken, path))
                 {
                     differences.Add($"Type mismatch at {path}: {token1.Value.Type} vs {token2.Value.Type} when comparing {token1.Key} and {token2.Key}");
                 }
+                return;
             }
 
             switch (token1.Value.Type)
@@ -300,37 +296,14 @@ namespace Tools.PxUtilsIntegrationTestTool
                     foreach (var key in allKeys)
                     {
                         var childPath = string.IsNullOrEmpty(path) ? key : $"{path}.{key}";
-                        KeyValuePair<string, JToken> kvp1 = new (token1.Key, obj1[key]);
-                        KeyValuePair<string, JToken> kvp2 = new (token2.Key, obj2[key]);
+                        KeyValuePair<string, JToken> kvp1 = new(token1.Key, obj1[key]);
+                        KeyValuePair<string, JToken> kvp2 = new(token2.Key, obj2[key]);
                         CompareJTokens(kvp1, kvp2, differences, childPath, responseToken);
                     }
                     break;
 
                 case JTokenType.Array:
-                    var arr1 = (JArray)token1.Value;
-                    var arr2 = (JArray)token2.Value;
-                    if (arr1.Count != arr2.Count)
-                    {
-                        Console.WriteLine($"Array length mismatch at {path}: {arr1.Count} vs {arr2.Count} when comparing {token1.Key} and {token2.Key}");
-                        if (!PromptWhitelisting(responseToken, path))
-                        {
-                            differences.Add($"Array length mismatch at {path}: {arr1.Count} vs {arr2.Count} when comparing {token1.Key} and {token2.Key}");
-                        }
-                    }
-                    else
-                    {
-                        if (responseToken == TokenConstants.RESPONSE_SQVISUALIZATION && path == TokenConstants.DATA_PATH)
-                        {
-                            CompareData(arr1, arr2, differences);
-                            break;
-                        }
-                        for (int i = 0; i < arr1.Count; i++)
-                        {
-                            KeyValuePair<string, JToken> kvp1 = new (token1.Key, arr1[i]);
-                            KeyValuePair<string, JToken> kvp2 = new (token2.Key, arr2[i]);
-                            CompareJTokens(kvp1, kvp2, differences, $"{path}[{i}]", responseToken);
-                        }
-                    }
+                    CompareArrays((JArray)token1.Value, (JArray)token2.Value, differences, path, responseToken);
                     break;
 
                 default:
@@ -343,6 +316,32 @@ namespace Tools.PxUtilsIntegrationTestTool
                         }
                     }
                     break;
+            }
+        }
+
+        private void CompareArrays(JArray arr1, JArray arr2, List<string> differences, string path, string responseToken)
+        {
+            if (responseToken == TokenConstants.RESPONSE_SQVISUALIZATION && path == TokenConstants.DATA_PATH)
+            {
+                CompareData(arr1, arr2, differences);
+                return;
+            }
+
+            if (arr1.Count != arr2.Count)
+            {
+                Console.WriteLine($"Array length mismatch at {path}: {arr1.Count} vs {arr2.Count}");
+                if (!PromptWhitelisting(responseToken, path))
+                {
+                    differences.Add($"Array length mismatch at {path}: {arr1.Count} vs {arr2.Count}");
+                }
+                return;
+            }
+
+            for (int i = 0; i < arr1.Count; i++)
+            {
+                KeyValuePair<string, JToken> kvp1 = new(responseToken, arr1[i]);
+                KeyValuePair<string, JToken> kvp2 = new(responseToken, arr2[i]);
+                CompareJTokens(kvp1, kvp2, differences, path, responseToken);
             }
         }
 
