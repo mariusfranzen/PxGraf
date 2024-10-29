@@ -14,7 +14,16 @@ namespace Tools.PxUtilsIntegrationTestTool
         internal const string ACCEPTED_FILE = "accepted.txt";
         internal const string REJECTED_FILE = "rejected.json";
         internal const string WHITELIST_FILE = "whitelist.txt";
+        internal const string SKIPPED_FILE = "skipped.txt";
+        internal const string COLLECTED_FILE = "collected.txt";
 
         internal const string DATA_PATH = "data";
+    }
+
+    internal enum ComparisonResult
+    {
+        Accepted,
+        Rejected,
+        Skipped
     }
 }

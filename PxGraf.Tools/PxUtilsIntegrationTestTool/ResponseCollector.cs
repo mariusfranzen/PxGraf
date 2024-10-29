@@ -29,65 +29,72 @@ namespace Tools.PxUtilsIntegrationTestTool
                 Console.WriteLine($"Random queries selected: {string.Join(", ", queries)}");
             }
 
-            foreach (string dataSource in _dataSources)
+            string collectedPath = Path.Combine(Program.Config.Paths.ResponseDirectory, TokenConstants.COLLECTED_FILE);
+            Directory.CreateDirectory(Program.Config.Paths.ResponseDirectory);
+            if (!File.Exists(collectedPath))
+                File.Create(collectedPath).Close();
+            List<string> collected = [];
+
+            for (int i = 0; i < queries.Length; i++)
             {
-                string url = ToolsUtilities.GetDataSourceUrl(dataSource);
-                string saveLocation = ResponseSaveLocation.SetSaveLocation(dataSource);
-                await StoreSqVisualizationResponses(saveLocation, queries, url);
-                await StoreSavedQueryResponses(saveLocation, queries, url);
-                await StoreSqMetaResponses(saveLocation, queries, url);
+                if (collected.Contains(queries[i]))
+                {
+                    Console.WriteLine($"Query ID: {queries[i]} already collected");
+                    continue;
+                }
+                foreach (string dataSource in _dataSources)
+                {
+                    string url = ToolsUtilities.GetDataSourceUrl(dataSource);
+                    string saveLocation = ResponseSaveLocation.SetResponseSaveLocation(dataSource);
+                    await StoreSqVisualizationResponse(saveLocation, queries[i], url);
+                    await StoreSavedQueryResponse(saveLocation, queries[i], url);
+                    await StoreSqMetaResponse(saveLocation, queries[i], url);
+                }
+                collected.Add(queries[i]);
+                await File.WriteAllLinesAsync(collectedPath, collected);
             }
         }
 
-        private async Task StoreSqMetaResponses(string saveLocation, string[] queries, string url)
+        private async Task StoreSqMetaResponse(string saveLocation, string query, string url)
         {
             string saveDirectory = Path.Combine(saveLocation, TokenConstants.RESPONSE_SQMETA);
             Directory.CreateDirectory(saveDirectory);
-            for (int i = 0; i < queries.Length; i++)
+            (QueryMetaResponse? queryMeta, string content) = await GetQueryMetaAsync($"{url}/api/sq/meta/" + query);
+            if (queryMeta != null)
             {
-                (QueryMetaResponse? queryMeta, string content) = await GetQueryMetaAsync($"{url}/api/sq/meta/" + queries[i]);
-                if (queryMeta != null)
-                {
-                    await File.WriteAllTextAsync(Path.Combine(saveDirectory, queries[i] + ".json"), content);
-                    Console.WriteLine($"Query ID: {queries[i]}, meta response stored to {saveDirectory}");
-                }
-                else
-                    Console.WriteLine($"Unable to parse query meta for query ID: {queries[i]}");
+                await File.WriteAllTextAsync(Path.Combine(saveDirectory, query + ".json"), content);
+                Console.WriteLine($"Query ID: {query}, meta response stored to {saveDirectory}");
             }
+            else
+                Console.WriteLine($"Unable to parse query meta for query ID: {query}");
         }
 
-        private async Task StoreSqVisualizationResponses(string saveLocation, string[] queries, string url)
+        private async Task StoreSqVisualizationResponse(string saveLocation, string query, string url)
         {
             string saveDirectory = Path.Combine(saveLocation, TokenConstants.RESPONSE_SQVISUALIZATION);
             Directory.CreateDirectory(saveDirectory);
-            for (int i = 0; i < queries.Length; i++)
-            {
-                (VisualizationResponse? queryVisualization, string content) = await GetQueryVisualizationAsync($"{url}/api/sq/visualization/" + queries[i]);
+                (VisualizationResponse? queryVisualization, string content) = await GetQueryVisualizationAsync($"{url}/api/sq/visualization/" + query);
                 if (queryVisualization != null)
                 {
-                    await File.WriteAllTextAsync(Path.Combine(saveDirectory, queries[i] + ".json"), content);
-                    Console.WriteLine($"Query ID: {queries[i]}, visualization response stored to {saveDirectory}");
+                    await File.WriteAllTextAsync(Path.Combine(saveDirectory, query + ".json"), content);
+                    Console.WriteLine($"Query ID: {query}, visualization response stored to {saveDirectory}");
                 }
                 else
-                    Console.WriteLine($"Unable to parse query visualization for query ID: {queries[i]}");
-            }
+                    Console.WriteLine($"Unable to parse query visualization for query ID: {query}");
         }
 
-        private async Task StoreSavedQueryResponses(string saveLocation, string[] queries, string url)
+        private async Task StoreSavedQueryResponse(string saveLocation, string query, string url)
         {
             string saveDirectory = Path.Combine(saveLocation, TokenConstants.RESPONSE_SQ);
             Directory.CreateDirectory(saveDirectory);
-            for (int i = 0; i < queries.Length; i++)
+            (SaveQueryParams? queryMeta, string content) = await GetSavedQueryAsync($"{url}/api/sq/" + query);
+            if (queryMeta != null)
             {
-                (SaveQueryParams? queryMeta, string content) = await GetSavedQueryAsync($"{url}/api/sq/" + queries[i]);
-                if (queryMeta != null)
-                {
-                    await File.WriteAllTextAsync(Path.Combine(saveDirectory, queries[i] + ".json"), content);
-                    Console.WriteLine($"Query ID: {queries[i]}, saved query response stored to {saveDirectory}");
-                }
-                else
-                    Console.WriteLine($"Unable to parse saved query for query ID: {queries[i]}");
+                await File.WriteAllTextAsync(Path.Combine(saveDirectory, query + ".json"), content);
+                Console.WriteLine($"Query ID: {query}, saved query response stored to {saveDirectory}");
             }
+            else
+                Console.WriteLine($"Unable to parse saved query for query ID: {query}");
         }
 
         private async Task<(QueryMetaResponse?, string)> GetQueryMetaAsync(string url)

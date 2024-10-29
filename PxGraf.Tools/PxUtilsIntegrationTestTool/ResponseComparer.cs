@@ -16,7 +16,7 @@ namespace Tools.PxUtilsIntegrationTestTool
         {
             InitiateResults();
             _responseLocation = Program.Config.Paths.ResponseDirectory;
-            _queries = await File.ReadAllLinesAsync(Program.Config.Paths.QueriesFile);
+            _queries = await File.ReadAllLinesAsync(Path.Combine(Program.Config.Paths.ResponseDirectory, TokenConstants.COLLECTED_FILE));
             for (int i = 0; i < _queries.Length; i++)
             {
                 _queries[i] = Path.GetFileNameWithoutExtension(_queries[i]);
@@ -39,12 +39,15 @@ namespace Tools.PxUtilsIntegrationTestTool
             string acceptedPath = Path.Combine(_resultsLocation, TokenConstants.ACCEPTED_FILE);
             string rejectedPath = Path.Combine(_resultsLocation, TokenConstants.REJECTED_FILE);
             string whitelistPath = Path.Combine(_resultsLocation, TokenConstants.WHITELIST_FILE);
+            string skippedPath = Path.Combine(_resultsLocation, TokenConstants.SKIPPED_FILE);
             if (!File.Exists(acceptedPath))
                 File.Create(acceptedPath).Close();
             if (!File.Exists(rejectedPath))
                 File.Create(rejectedPath).Close();
             if (!File.Exists(whitelistPath))
                 File.Create(whitelistPath).Close();
+            if (!File.Exists(skippedPath))
+                File.Create(skippedPath).Close();
         }
 
         private async Task IterateResponses()
@@ -52,9 +55,12 @@ namespace Tools.PxUtilsIntegrationTestTool
             string acceptedPath = Path.Combine(_resultsLocation, TokenConstants.ACCEPTED_FILE);
             string rejectedPath = Path.Combine(_resultsLocation, TokenConstants.REJECTED_FILE);
             string whitelistPath = Path.Combine(_resultsLocation, TokenConstants.WHITELIST_FILE);
+            string skippedPath = Path.Combine(_resultsLocation, TokenConstants.SKIPPED_FILE);
 
             string[] acceptedArray = await File.ReadAllLinesAsync(acceptedPath);
-            List<string> _accepted = [.. acceptedArray];
+            string[] skippedArray = await File.ReadAllLinesAsync(skippedPath);
+            List<string> accepted = [.. acceptedArray];
+            List<string> skipped = [.. skippedArray];
 
             _rejected = JsonConvert.DeserializeObject<Dictionary<string, string>>(await File.ReadAllTextAsync(rejectedPath)) ?? [];
             _whitelist = JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(await File.ReadAllTextAsync(whitelistPath)) ?? [];
@@ -63,9 +69,14 @@ namespace Tools.PxUtilsIntegrationTestTool
 
             foreach (string query in _queries)
             {
-                if (_accepted.Contains(query))
+                if (accepted.Contains(query))
                 {
                     Console.WriteLine($"Query: {query} has already been accepted.");
+                    continue;
+                }
+                else if (skipped.Contains(query))
+                {
+                    Console.WriteLine($"Query: {query} has already been skipped.");
                     continue;
                 }
                 else if (_rejected.TryGetValue(query, out string? value) && !skipReevaluations)
@@ -79,21 +90,32 @@ namespace Tools.PxUtilsIntegrationTestTool
                     }
                 }
 
-                if (CompareResults(query, TokenConstants.RESPONSE_SQ) &&
-                CompareResults(query, TokenConstants.RESPONSE_SQMETA) &&
-                CompareResults(query, TokenConstants.RESPONSE_SQVISUALIZATION))
-                {                     
-                    Console.WriteLine($"Query: {query} has been accepted.");
-                    _accepted.Add(query);
-                    await File.WriteAllLinesAsync(Path.Combine(_resultsLocation, TokenConstants.ACCEPTED_FILE), _accepted);
+                ComparisonResult sqResult = CompareResults(query, TokenConstants.RESPONSE_SQ);
+                ComparisonResult sqMetaResult = CompareResults(query, TokenConstants.RESPONSE_SQMETA);
+                ComparisonResult sqVisualizationResult = CompareResults(query, TokenConstants.RESPONSE_SQVISUALIZATION);
 
-                    _rejected.Remove(query);
-                    await File.WriteAllTextAsync(Path.Combine(_resultsLocation, TokenConstants.REJECTED_FILE), JsonConvert.SerializeObject(_rejected));
+                if (sqResult != ComparisonResult.Rejected && sqMetaResult != ComparisonResult.Rejected && sqVisualizationResult != ComparisonResult.Rejected)
+                {
+                    if (sqResult == ComparisonResult.Skipped && sqMetaResult == ComparisonResult.Skipped && sqVisualizationResult == ComparisonResult.Skipped)
+                    {
+                        Console.WriteLine($"Query: {query} has been skipped because it yielded no responses.");
+                        skipped.Add(query);
+                        await File.WriteAllLinesAsync(Path.Combine(_resultsLocation, TokenConstants.SKIPPED_FILE), skipped);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Query: {query} has been accepted.");
+                        accepted.Add(query);
+                        await File.WriteAllLinesAsync(Path.Combine(_resultsLocation, TokenConstants.ACCEPTED_FILE), accepted);
+
+                        _rejected.Remove(query);
+                        await File.WriteAllTextAsync(Path.Combine(_resultsLocation, TokenConstants.REJECTED_FILE), JsonConvert.SerializeObject(_rejected));
+                    }
                 }
             }
         }
 
-        private bool CompareResults(string query, string responseToken)
+        private ComparisonResult CompareResults(string query, string responseToken)
         {
             string pxUtilsPath = Path.Combine(_responseLocation, TokenConstants.DATASOURCE_PXUTILS, responseToken, query + ".json");
             string pxWebApiPath = Path.Combine(_responseLocation, TokenConstants.DATASOURCE_PXWEBAPI, responseToken, query + ".json");
@@ -107,8 +129,8 @@ namespace Tools.PxUtilsIntegrationTestTool
             {
                 if (!pxUtilsExists && !pxWebApiExists && !pxWebOldExists)
                 {
-                    // Console.WriteLine($"No responses for {query}. Skipping.");
-                    return false;
+                    Console.WriteLine($"No responses for {query} {responseToken}. Skipping.");
+                    return ComparisonResult.Skipped;
                 }
                 string reason = $"Reason: {responseToken}:";
                 reason += !pxUtilsExists ? " PxUtils response file does not exist." : "";
@@ -117,7 +139,7 @@ namespace Tools.PxUtilsIntegrationTestTool
                 reason = reason.Trim();
                 Console.WriteLine($"Query: {query} has been rejected. Reason: {reason}");
                 TryAddRejection(query, reason);
-                return false;
+                return ComparisonResult.Rejected;
             }
 
             string pxUtilsResponse = File.ReadAllText(pxUtilsPath);
@@ -132,17 +154,17 @@ namespace Tools.PxUtilsIntegrationTestTool
                 CompareDeserializedObjects(pxUtils, pxWebApi, responseToken) > 0 &&
                 DifferenceControls(query, pxUtilsPath, pxWebApiPath, responseToken, TokenConstants.DATASOURCE_PXUTILS, TokenConstants.DATASOURCE_PXWEBAPI))
             {
-                return false;
+                return ComparisonResult.Rejected;
             }
 
             if (pxUtilsResponse != pxWebOldResponse &&
                 CompareDeserializedObjects(pxUtils, pxWebOld, responseToken) > 0 &&
                 DifferenceControls(query, pxUtilsPath, pxWebOldPath, responseToken, TokenConstants.DATASOURCE_PXUTILS, TokenConstants.DATASOURCE_OLD))
             {
-                return false;
+                return ComparisonResult.Rejected;
             }
 
-            return true;
+            return ComparisonResult.Accepted;
         }
 
         private bool DifferenceControls(string query, string resp1, string resp2, string responseToken, string name1, string name2)
