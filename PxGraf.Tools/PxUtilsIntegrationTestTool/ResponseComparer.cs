@@ -168,7 +168,7 @@ namespace Tools.PxUtilsIntegrationTestTool
 
         private bool DifferenceControls(string query, string resp1, string resp2, string responseToken, string name1, string name2)
         {
-            Console.WriteLine($"Select an option to handle {responseToken} response for {query}:");
+            Console.WriteLine($"Select an option to handle {responseToken} differences between {name1} and {name2} for {query}:");
             Console.WriteLine("1. Open diff in VSCode editor");
             Console.WriteLine("2. Accept reviewed differences");
             Console.WriteLine("3. Reject the query");
@@ -282,10 +282,10 @@ namespace Tools.PxUtilsIntegrationTestTool
 
             if (token1.Value.Type != token2.Value.Type)
             {
-                Console.WriteLine($"Type mismatch at {path}: {token1.Value.Type} vs {token2.Value.Type} when comparing {token1.Key} and {token2.Key}");
+                Console.WriteLine($"Type mismatch at {path}: {token1.Value.Type} vs {token2.Value.Type}");
                 if (!PromptWhitelisting(responseToken, path, token1.Value.ToString(), token2.Value.ToString()))
                 {
-                    differences.Add($"Type mismatch at {path}: {token1.Value.Type} vs {token2.Value.Type} when comparing {token1.Key} and {token2.Key}");
+                    differences.Add($"Type mismatch at {path}: {token1.Value.Type} vs {token2.Value.Type}");
                 }
                 return;
             }
@@ -312,10 +312,10 @@ namespace Tools.PxUtilsIntegrationTestTool
                 default:
                     if (!JToken.DeepEquals(token1.Value, token2.Value))
                     {
-                        Console.WriteLine($"Value mismatch at {path}: {token1.Value} vs {token2.Value} when comparing {token1.Key} and {token2.Key}");
+                        Console.WriteLine($"Value mismatch at {path}: {token1.Value} vs {token2.Value}");
                         if (!PromptWhitelisting(responseToken, path, token1.Value.ToString(), token2.Value.ToString()))
                         {
-                            differences.Add($"Value mismatch at {path}: {token1.Value} vs {token2.Value} when comparing {token1.Key} and {token2.Key}");
+                            differences.Add($"Value mismatch at {path}: {token1.Value} vs {token2.Value}");
                         }
                     }
                     break;
