@@ -1,5 +1,5 @@
-﻿using System.Text.Json;
-using Tools.PxUtilsIntegrationTestTool;
+﻿using Tools.PxUtilsIntegrationTestTool;
+using Newtonsoft.Json;
 
 namespace Tools
 {
@@ -11,8 +11,7 @@ namespace Tools
         {
             string configFilePath = Path.Combine(Directory.GetCurrentDirectory(), "configuration.json");
             string jsonString = await File.ReadAllTextAsync(configFilePath);
-            var options = new JsonSerializerOptions { IncludeFields = true };
-            Configuration? config = JsonSerializer.Deserialize<Configuration>(jsonString, options);
+            Configuration? config = JsonConvert.DeserializeObject<Configuration>(jsonString, JsonOptions.Default);
             Config = config ?? throw new JsonException("Configuration file could not be parsed properly");
 
             int option;

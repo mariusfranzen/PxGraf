@@ -1,4 +1,8 @@
-﻿namespace Tools
+﻿using Tools.PxUtilsIntegrationTestTool;
+using Newtonsoft.Json;
+using PxGraf.Utility;
+
+namespace Tools
 {
     public class Urls
     {
@@ -44,5 +48,14 @@
             Urls = urls;
             Paths = paths;
         }
+    }
+
+    public static class JsonOptions
+    {
+        public static readonly JsonSerializerSettings Default = 
+            new()
+            {
+                Converters = { new WhitelistConverter(), new MultilanguageStringConverter() }
+            };
     }
 }

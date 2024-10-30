@@ -1,22 +1,16 @@
 ﻿using PxGraf.Models.Responses;
 using PxGraf.Models.Requests;
 using Newtonsoft.Json;
-using PxGraf.Utility;
-using System.Data.Common;
-
 
 namespace Tools.PxUtilsIntegrationTestTool
 {
     internal class ResponseCollector(int? randomAmount = null) : Command
     {
         private readonly string[] _dataSources = [TokenConstants.DATASOURCE_PXUTILS, TokenConstants.DATASOURCE_PXWEBAPI, TokenConstants.DATASOURCE_OLD];
-        private readonly JsonSerializerSettings _jsonConverterSettings = new();
         private readonly int? _randomAmount = randomAmount;
 
         internal override async Task Start()
         {
-            _jsonConverterSettings.Converters.Add(new MultilanguageStringConverter());
-
             string[] queries = await File.ReadAllLinesAsync(Program.Config.Paths.QueriesFile);
             for (int i = 0; i < queries.Length; i++)
             {
@@ -107,7 +101,7 @@ namespace Tools.PxUtilsIntegrationTestTool
                 return (null, response.StatusCode.ToString());
             }
             string responseBody = await response.Content.ReadAsStringAsync();
-            QueryMetaResponse? meta = JsonConvert.DeserializeObject<QueryMetaResponse>(responseBody, _jsonConverterSettings);
+            QueryMetaResponse? meta = JsonConvert.DeserializeObject<QueryMetaResponse>(responseBody, JsonOptions.Default);
             return meta is not null ? (meta, responseBody) : (null, responseBody);
         }
 
@@ -121,7 +115,7 @@ namespace Tools.PxUtilsIntegrationTestTool
                 return (null, response.StatusCode.ToString());
             }
             string responseBody = await response.Content.ReadAsStringAsync();
-            VisualizationResponse? visualization = JsonConvert.DeserializeObject<VisualizationResponse>(responseBody, _jsonConverterSettings);
+            VisualizationResponse? visualization = JsonConvert.DeserializeObject<VisualizationResponse>(responseBody, JsonOptions.Default);
             return visualization is not null ? (visualization, responseBody) : (null, responseBody);
         }
 
@@ -136,7 +130,7 @@ namespace Tools.PxUtilsIntegrationTestTool
             }
             string responseBody = await response.Content.ReadAsStringAsync();
 
-            SaveQueryParams? savedQuery = JsonConvert.DeserializeObject<SaveQueryParams>(responseBody, _jsonConverterSettings);
+            SaveQueryParams? savedQuery = JsonConvert.DeserializeObject<SaveQueryParams>(responseBody, JsonOptions.Default);
             return savedQuery is not null ? (savedQuery, responseBody) : (null, responseBody);
         }
     }

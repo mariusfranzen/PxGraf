@@ -8,7 +8,7 @@ namespace Tools.PxUtilsIntegrationTestTool
         private string _resultsLocation = string.Empty;
         private string[] _queries = [];
         private Dictionary<string, string> _rejected = [];
-        private Dictionary<string, List<string>> _whitelist = [];
+        private Dictionary<WhitelistKey, List<WhitelistRule>> _whitelist = [];
         private string _responseLocation = string.Empty;
 
         internal override async Task Start()
@@ -61,8 +61,8 @@ namespace Tools.PxUtilsIntegrationTestTool
             List<string> accepted = [.. acceptedArray];
             List<string> skipped = [.. skippedArray];
 
-            _rejected = JsonConvert.DeserializeObject<Dictionary<string, string>>(await File.ReadAllTextAsync(rejectedPath)) ?? [];
-            _whitelist = JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(await File.ReadAllTextAsync(whitelistPath)) ?? [];
+            _rejected = JsonConvert.DeserializeObject<Dictionary<string, string>>(await File.ReadAllTextAsync(rejectedPath), JsonOptions.Default) ?? [];
+            _whitelist = JsonConvert.DeserializeObject<Dictionary<WhitelistKey, List<WhitelistRule>>>(await File.ReadAllTextAsync(whitelistPath), JsonOptions.Default) ?? [];
 
             bool skipReevaluations = false;
 
@@ -272,15 +272,18 @@ namespace Tools.PxUtilsIntegrationTestTool
 
         private void CompareJTokens(KeyValuePair<string, JToken> token1, KeyValuePair<string, JToken> token2, List<string> differences, string path, string responseToken)
         {
-            if (_whitelist.TryGetValue(responseToken, out List<string>? whitelist) && whitelist.Contains(path))
+            WhitelistKey wlKey = new(responseToken, path);
+            if (_whitelist.TryGetValue(wlKey, out List<WhitelistRule>? whitelist) &&
+                whitelist.Exists(wl => wl.AnythingGoes || (wl.ExpectedValue1 == token1.Value.ToString() && wl.ExpectedValue2 == token2.Value.ToString())))
             {
                 Console.WriteLine($"{path} is a whitelisted exception");
                 return;
             }
+
             if (token1.Value.Type != token2.Value.Type)
             {
                 Console.WriteLine($"Type mismatch at {path}: {token1.Value.Type} vs {token2.Value.Type} when comparing {token1.Key} and {token2.Key}");
-                if (!PromptWhitelisting(responseToken, path))
+                if (!PromptWhitelisting(responseToken, path, token1.Value.ToString(), token2.Value.ToString()))
                 {
                     differences.Add($"Type mismatch at {path}: {token1.Value.Type} vs {token2.Value.Type} when comparing {token1.Key} and {token2.Key}");
                 }
@@ -310,7 +313,7 @@ namespace Tools.PxUtilsIntegrationTestTool
                     if (!JToken.DeepEquals(token1.Value, token2.Value))
                     {
                         Console.WriteLine($"Value mismatch at {path}: {token1.Value} vs {token2.Value} when comparing {token1.Key} and {token2.Key}");
-                        if (!PromptWhitelisting(responseToken, path))
+                        if (!PromptWhitelisting(responseToken, path, token1.Value.ToString(), token2.Value.ToString()))
                         {
                             differences.Add($"Value mismatch at {path}: {token1.Value} vs {token2.Value} when comparing {token1.Key} and {token2.Key}");
                         }
@@ -323,17 +326,14 @@ namespace Tools.PxUtilsIntegrationTestTool
         {
             if (responseToken == TokenConstants.RESPONSE_SQVISUALIZATION && path == TokenConstants.DATA_PATH)
             {
-                CompareData(arr1, arr2, differences);
+                ResponseComparisonUtilities.CompareData(arr1, arr2, differences);
                 return;
             }
 
             if (arr1.Count != arr2.Count)
             {
                 Console.WriteLine($"Array length mismatch at {path}: {arr1.Count} vs {arr2.Count}");
-                if (!PromptWhitelisting(responseToken, path))
-                {
-                    differences.Add($"Array length mismatch at {path}: {arr1.Count} vs {arr2.Count}");
-                }
+                differences.Add($"Array length mismatch at {path}: {arr1.Count} vs {arr2.Count}");
                 return;
             }
 
@@ -345,56 +345,25 @@ namespace Tools.PxUtilsIntegrationTestTool
             }
         }
 
-        private static void CompareData(JArray arr1, JArray arr2, List<string> differences)
+        private bool PromptWhitelisting(string responseToken, string path, string value1, string value2)
         {
-            for (int i = 0; i < arr1.Count; i++)
-            {
-                JToken item1 = arr1[i];
-                JToken item2 = arr2[i];
-
-                bool item1IsNumber = item1.Type == JTokenType.Float || item1.Type == JTokenType.Integer;
-                bool item2IsNumber = item2.Type == JTokenType.Float || item2.Type == JTokenType.Integer;
-
-                if (item1IsNumber != item2IsNumber)
-                {
-                    differences.Add($"Data type mismatch at {TokenConstants.DATA_PATH}[{i}]: {item1.Type} vs {item2.Type} when comparing {TokenConstants.RESPONSE_SQVISUALIZATION} and {TokenConstants.DATASOURCE_PXWEBAPI}");
-                    continue;
-                }
-
-                if (!item1IsNumber && !item2IsNumber)
-                {
-                    continue;
-                }
-
-                decimal value1 = item1.Value<decimal>();
-                decimal value2 = item2.Value<decimal>();
-
-                int decimalPlaces1 = BitConverter.GetBytes(decimal.GetBits(value1)[3])[2];
-                int decimalPlaces2 = BitConverter.GetBytes(decimal.GetBits(value2)[3])[2];
-                int decimalPlaces = Math.Min(decimalPlaces1, decimalPlaces2);
-
-                decimal roundedValue1 = Math.Round(value1, decimalPlaces);
-                decimal roundedValue2 = Math.Round(value2, decimalPlaces);
-
-                if (roundedValue1 != roundedValue2)
-                {
-                    differences.Add($"Data mismatch at {TokenConstants.DATA_PATH}[{i}]: {value1} vs {value2} when comparing {TokenConstants.RESPONSE_SQVISUALIZATION}");
-                }
-            }
-        }
-
-        private bool PromptWhitelisting(string responseToken, string path)
-        {
-            Console.WriteLine($"Do you want to whitelist this property: {path} for {responseToken}? (y/n)");
+            Console.WriteLine($"Do you want to add a whitelist rule for this property: {path} for {responseToken}? (y/n)");
             if (ToolsUtilities.GetBooleanAnswer())
             {
-                if (!_whitelist.TryGetValue(responseToken, out List<string>? whitelist))
+                WhitelistKey wlKey = new(responseToken, path);
+                Console.WriteLine($"Only accept these values: {value1} and {value2} (y) or whitelist the entire property (n)? (y/n)");
+                bool anythingGoes = !ToolsUtilities.GetBooleanAnswer();
+                WhitelistRule rule = anythingGoes ? new(true) : new(false, value1, value2);
+                if (_whitelist.TryGetValue(wlKey, out List<WhitelistRule>? whitelist))
                 {
-                    whitelist = [];
-                    _whitelist.Add(responseToken, whitelist);
+                    whitelist.Add(rule);
                 }
-                whitelist.Add(path);
-                File.WriteAllText(Path.Combine(_resultsLocation, TokenConstants.WHITELIST_FILE), JsonConvert.SerializeObject(_whitelist));
+                else
+                {
+                    whitelist = [rule];
+                    _whitelist.Add(wlKey, whitelist);
+                }
+                File.WriteAllText(Path.Combine(_resultsLocation, TokenConstants.WHITELIST_FILE), JsonConvert.SerializeObject(_whitelist, JsonOptions.Default));
                 return true;
             }
             return false;
