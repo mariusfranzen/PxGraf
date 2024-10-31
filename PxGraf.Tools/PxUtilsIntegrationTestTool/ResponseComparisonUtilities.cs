@@ -37,8 +37,8 @@ namespace Tools.PxUtilsIntegrationTestTool
                 int decimalPlaces2 = BitConverter.GetBytes(decimal.GetBits(value2)[3])[2];
                 int decimalPlaces = Math.Min(decimalPlaces1, decimalPlaces2);
 
-                decimal roundedValue1 = Math.Round(value1, decimalPlaces);
-                decimal roundedValue2 = Math.Round(value2, decimalPlaces);
+                decimal roundedValue1 = Math.Round(value1, decimalPlaces, MidpointRounding.AwayFromZero);
+                decimal roundedValue2 = Math.Round(value2, decimalPlaces, MidpointRounding.AwayFromZero);
 
                 if (roundedValue1 != roundedValue2)
                 {
