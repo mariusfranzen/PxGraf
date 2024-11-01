@@ -249,7 +249,7 @@ namespace Tools.PxUtilsIntegrationTestTool
             var differences = GetDifferences(kvp1, kvp2, responseToken);
             if (differences.Count > 0)
             {
-                Console.WriteLine("Differences found:");
+                Console.WriteLine($"Differences found between {responseToken} responses for {resp1.Key} and {resp2.Key}:");
                 foreach (var difference in differences)
                 {
                     Console.WriteLine(difference);
@@ -257,7 +257,7 @@ namespace Tools.PxUtilsIntegrationTestTool
             }
             else
             {
-                Console.WriteLine("No differences found.");
+                Console.WriteLine($"No differences found between {responseToken} responses for {resp1.Key} and {resp2.Key}.");
             }
             return differences.Count;
         }
@@ -295,13 +295,18 @@ namespace Tools.PxUtilsIntegrationTestTool
                 case JTokenType.Object:
                     var obj1 = (JObject)token1.Value;
                     var obj2 = (JObject)token2.Value;
-                    var allKeys = new HashSet<string>(obj1.Properties().Select(p => p.Name).Union(obj2.Properties().Select(p => p.Name)));
+                    var allKeys = new HashSet<string>(obj1.Properties().Select(p => p.Name.ToLower()).Union(obj2.Properties().Select(p => p.Name.ToLower())));
                     foreach (var key in allKeys)
                     {
                         var childPath = string.IsNullOrEmpty(path) ? key : $"{path}.{key}";
-                        KeyValuePair<string, JToken> kvp1 = new(token1.Key, obj1[key]);
-                        KeyValuePair<string, JToken> kvp2 = new(token2.Key, obj2[key]);
-                        CompareJTokens(kvp1, kvp2, differences, childPath, responseToken);
+                        var obj1Value = obj1.Properties().FirstOrDefault(p => p.Name.Equals(key, StringComparison.OrdinalIgnoreCase))?.Value;
+                        var obj2Value = obj2.Properties().FirstOrDefault(p => p.Name.Equals(key, StringComparison.OrdinalIgnoreCase))?.Value;
+                        if (obj1Value != null && obj2Value != null)
+                        {
+                            KeyValuePair<string, JToken> kvp1 = new(token1.Key, obj1Value);
+                            KeyValuePair<string, JToken> kvp2 = new(token2.Key, obj2Value);
+                            CompareJTokens(kvp1, kvp2, differences, childPath, responseToken);
+                        }
                     }
                     break;
 
