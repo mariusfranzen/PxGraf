@@ -25,12 +25,26 @@ namespace Tools.PxUtilsIntegrationTestTool
 
             string collectedPath = Path.Combine(Program.Config.Paths.ResponseDirectory, TokenConstants.COLLECTED_FILE);
             Directory.CreateDirectory(Program.Config.Paths.ResponseDirectory);
+            List<string> collected = [];
             if (!File.Exists(collectedPath))
                 File.Create(collectedPath).Close();
-            List<string> collected = [];
+            else
+            {
+                string[] strings = await File.ReadAllLinesAsync(collectedPath);
+                collected = [..strings];
+            }
+
+            string issuesPath = Path.Combine(Program.Config.Paths.ResponseDirectory, TokenConstants.ISSUES_FILE);
+            List<string> issues = [];
+            if (File.Exists(issuesPath))
+            {
+                string[] strings = await File.ReadAllLinesAsync(issuesPath);
+                issues = [..strings];
+            }
 
             for (int i = 0; i < queries.Length; i++)
             {
+                List<string> queryIssues = [];
                 if (collected.Contains(queries[i]))
                 {
                     Console.WriteLine($"Query ID: {queries[i]} already collected");
@@ -40,16 +54,27 @@ namespace Tools.PxUtilsIntegrationTestTool
                 {
                     string url = ToolsUtilities.GetDataSourceUrl(dataSource);
                     string saveLocation = ResponseSaveLocation.SetResponseSaveLocation(dataSource);
-                    await StoreSqVisualizationResponse(saveLocation, queries[i], url);
-                    await StoreSavedQueryResponse(saveLocation, queries[i], url);
-                    await StoreSqMetaResponse(saveLocation, queries[i], url);
+                    string? visualizationIssue = await StoreSqVisualizationResponse(saveLocation, queries[i], url);
+                    if (visualizationIssue != null)
+                        queryIssues.Add(visualizationIssue);
+                    string? sqIssue = await StoreSavedQueryResponse(saveLocation, queries[i], url);
+                    if (sqIssue != null)
+                        queryIssues.Add(sqIssue);
+                    string? sqMetaIssue = await StoreSqMetaResponse(saveLocation, queries[i], url);
+                    if (sqMetaIssue != null)
+                        queryIssues.Add(sqMetaIssue);
+                }
+                if (queryIssues.Count != 0)
+                {
+                    issues.Add($"Query ID: {queries[i]}: {string.Join(", ", queryIssues)}");
+                    await File.WriteAllLinesAsync(issuesPath, issues);
                 }
                 collected.Add(queries[i]);
                 await File.WriteAllLinesAsync(collectedPath, collected);
             }
         }
 
-        private async Task StoreSqMetaResponse(string saveLocation, string query, string url)
+        private static async Task<string?> StoreSqMetaResponse(string saveLocation, string query, string url)
         {
             string saveDirectory = Path.Combine(saveLocation, TokenConstants.RESPONSE_SQMETA);
             Directory.CreateDirectory(saveDirectory);
@@ -58,26 +83,32 @@ namespace Tools.PxUtilsIntegrationTestTool
             {
                 await File.WriteAllTextAsync(Path.Combine(saveDirectory, query + ".json"), content);
                 Console.WriteLine($"Query ID: {query}, meta response stored to {saveDirectory}");
+                return null;
             }
             else
-                Console.WriteLine($"Unable to parse query meta for query ID: {query} from {url}");
+            {
+                return $"{content} for sq-meta from {url}";
+            }
         }
 
-        private async Task StoreSqVisualizationResponse(string saveLocation, string query, string url)
+        private static async Task<string?> StoreSqVisualizationResponse(string saveLocation, string query, string url)
         {
             string saveDirectory = Path.Combine(saveLocation, TokenConstants.RESPONSE_SQVISUALIZATION);
             Directory.CreateDirectory(saveDirectory);
                 (VisualizationResponse? queryVisualization, string content) = await GetQueryVisualizationAsync($"{url}/api/sq/visualization/" + query);
-                if (queryVisualization != null)
-                {
-                    await File.WriteAllTextAsync(Path.Combine(saveDirectory, query + ".json"), content);
-                    Console.WriteLine($"Query ID: {query}, visualization response stored to {saveDirectory}");
-                }
-                else
-                    Console.WriteLine($"Unable to parse query visualization for query ID: {query} from {url}");
+            if (queryVisualization != null)
+            {
+                await File.WriteAllTextAsync(Path.Combine(saveDirectory, query + ".json"), content);
+                Console.WriteLine($"Query ID: {query}, visualization response stored to {saveDirectory}");
+                return null;
+            }
+            else
+            {
+                return $"{content} response for visualization from {url}";
+            }
         }
 
-        private async Task StoreSavedQueryResponse(string saveLocation, string query, string url)
+        private static async Task<string?> StoreSavedQueryResponse(string saveLocation, string query, string url)
         {
             string saveDirectory = Path.Combine(saveLocation, TokenConstants.RESPONSE_SQ);
             Directory.CreateDirectory(saveDirectory);
@@ -86,12 +117,15 @@ namespace Tools.PxUtilsIntegrationTestTool
             {
                 await File.WriteAllTextAsync(Path.Combine(saveDirectory, query + ".json"), content);
                 Console.WriteLine($"Query ID: {query}, saved query response stored to {saveDirectory}");
+                return null;
             }
             else
-                Console.WriteLine($"Unable to parse saved query for query ID: {query} from {url}");
+            {
+                return $"{content} response for sq from {url}";
+            }
         }
 
-        private async Task<(QueryMetaResponse?, string)> GetQueryMetaAsync(string url)
+        private static async Task<(QueryMetaResponse?, string)> GetQueryMetaAsync(string url)
         {
             using HttpClient client = new();
             using HttpResponseMessage response = await client.GetAsync(url);
@@ -102,10 +136,15 @@ namespace Tools.PxUtilsIntegrationTestTool
             }
             string responseBody = await response.Content.ReadAsStringAsync();
             QueryMetaResponse? meta = JsonConvert.DeserializeObject<QueryMetaResponse>(responseBody, JsonOptions.Default);
-            return meta is not null ? (meta, responseBody) : (null, responseBody);
+            if (meta == null)
+            {
+                Console.WriteLine($"Failed to deserialize query meta from {url}");
+                return (null, "Failed to deserialize");
+            }
+            return (meta, responseBody);
         }
 
-        private async Task<(VisualizationResponse?, string)> GetQueryVisualizationAsync(string url)
+        private static async Task<(VisualizationResponse?, string)> GetQueryVisualizationAsync(string url)
         {
             using HttpClient client = new();
             using HttpResponseMessage response = await client.GetAsync(url);
@@ -116,10 +155,15 @@ namespace Tools.PxUtilsIntegrationTestTool
             }
             string responseBody = await response.Content.ReadAsStringAsync();
             VisualizationResponse? visualization = JsonConvert.DeserializeObject<VisualizationResponse>(responseBody, JsonOptions.Default);
-            return visualization is not null ? (visualization, responseBody) : (null, responseBody);
+            if (visualization == null)
+            {
+                Console.WriteLine($"Failed to deserialize query visualization from {url}");
+                return (null, "Failed to deserialize");
+            }
+            return (visualization, responseBody);
         }
 
-        private async Task<(SaveQueryParams?, string)> GetSavedQueryAsync(string url)
+        private static async Task<(SaveQueryParams?, string)> GetSavedQueryAsync(string url)
         {
             using HttpClient client = new();
             using HttpResponseMessage response = await client.GetAsync(url);
@@ -129,9 +173,13 @@ namespace Tools.PxUtilsIntegrationTestTool
                 return (null, response.StatusCode.ToString());
             }
             string responseBody = await response.Content.ReadAsStringAsync();
-
             SaveQueryParams? savedQuery = JsonConvert.DeserializeObject<SaveQueryParams>(responseBody, JsonOptions.Default);
-            return savedQuery is not null ? (savedQuery, responseBody) : (null, responseBody);
+            if (savedQuery == null)
+            {
+                Console.WriteLine($"Failed to deserialize saved query from {url}");
+                return (null, "Failed to deserialize");
+            }
+            return (savedQuery, responseBody);
         }
     }
 }

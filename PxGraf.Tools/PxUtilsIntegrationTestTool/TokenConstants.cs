@@ -18,6 +18,7 @@ namespace Tools.PxUtilsIntegrationTestTool
         internal const string WHITELIST_FILE = "whitelist.json";
         internal const string SKIPPED_FILE = "skipped.txt";
         internal const string COLLECTED_FILE = "collected.txt";
+        internal const string ISSUES_FILE = "issues.txt";
 
         internal const string DATA_PATH = "data";
     }
