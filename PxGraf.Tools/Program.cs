@@ -21,7 +21,8 @@ namespace Tools
                 Console.WriteLine("1. Collect all responses from PxGraf instances");
                 Console.WriteLine("2. Collect X random responses from PxGraf instances");
                 Console.WriteLine("3. Compare responses");
-                Console.WriteLine("4. Exit");
+                Console.WriteLine("4. Analyse missing responses");
+                Console.WriteLine("5. Exit");
                 option = ToolsUtilities.GetNumericAnswer(4);
                 switch (option)
                 {
@@ -39,10 +40,14 @@ namespace Tools
                         ResponseComparer responseComparer = new();
                         await responseComparer.Start();
                         break;
+                    case 4: 
+                        MissingResponseAnalyser missingResponseAnalyser = new();
+                        await missingResponseAnalyser.Start();
+                        break;
                     default:
                         break;
                 }
-            } while (option != 4);
+            } while (option != 5);
 
             Console.WriteLine("Exiting...");
             return;

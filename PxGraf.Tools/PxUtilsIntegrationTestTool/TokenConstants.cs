@@ -19,6 +19,7 @@ namespace Tools.PxUtilsIntegrationTestTool
         internal const string SKIPPED_FILE = "skipped.txt";
         internal const string COLLECTED_FILE = "collected.txt";
         internal const string ISSUES_FILE = "issues.txt";
+        internal const string MISSING_INFO_FILE = "missing-info.json";
 
         internal const string DATA_PATH = "data";
     }

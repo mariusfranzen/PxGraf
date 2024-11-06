@@ -55,7 +55,12 @@ namespace Tools
         public static readonly JsonSerializerSettings Default = 
             new()
             {
-                Converters = { new WhitelistConverter(), new MultilanguageStringConverter() }
+                Converters = { 
+                    new WhitelistConverter(),
+                    new MultilanguageStringConverter(),
+                    new ResponseKeyConverter() 
+                },
+                Formatting = Formatting.Indented
             };
     }
 }
