@@ -42,6 +42,26 @@ namespace Tools.PxUtilsIntegrationTestTool
             }
             string content = JsonConvert.SerializeObject(responsesInformation, JsonOptions.Default);
             await File.WriteAllTextAsync(Path.Combine(_resultsLocation, TokenConstants.MISSING_INFO_FILE), content);
+            Console.WriteLine("-------------------------------------------------------------");
+            Console.WriteLine("| {0,-14} | {1,-14} | {2,-14} | {3,-14} |", "Query", "Px.Utils", "PxWebApi", "PxWebApiOld");
+            Console.WriteLine("-------------------------------------------------------------");
+
+            for (int i = 0; i < responsesInformation.Count; i++)
+            {
+                var key = responsesInformation.Keys.ElementAt(i);
+                Console.WriteLine("| {0,-14} | {1,-14} | {2,-14} | {3,-14} |", "sq", FormatBool(key.Sq.PxUtilsResponseFound), FormatBool(key.Sq.PxWebApiResponseFound), FormatBool(key.Sq.PxWebApiOldResponseFound));
+                Console.WriteLine("| {0,-14} | {1,-14} | {2,-14} | {3,-14} |", "sq-meta", FormatBool(key.SqMeta.PxUtilsResponseFound), FormatBool(key.SqMeta.PxWebApiResponseFound), FormatBool(key.SqMeta.PxWebApiOldResponseFound));
+                Console.WriteLine("| {0,-14} | {1,-14} | {2,-14} | {3,-14} |", "visualization", FormatBool(key.SqVisualization.PxUtilsResponseFound), FormatBool(key.SqVisualization.PxWebApiResponseFound), FormatBool(key.SqVisualization.PxWebApiOldResponseFound));
+                Console.WriteLine($"| Queries        | {string.Join(", ", responsesInformation.Values.ElementAt(i))}");
+                Console.WriteLine("-------------------------------------------------------------");
+            }
+            Console.WriteLine($"Missing responses information saved to {Path.Combine(_resultsLocation, TokenConstants.MISSING_INFO_FILE)}");
+        }
+
+        private static string FormatBool(bool value)
+        {
+            const string missingText = "\u001b[31mMissing\u001b[0m";
+            return value ? "Found" : missingText + new string(' ', 14 - "Missing".Length);
         }
 
         internal Responses SearchForResponse(string query, string responseToken)
