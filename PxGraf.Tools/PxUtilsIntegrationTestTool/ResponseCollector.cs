@@ -1,6 +1,7 @@
 ﻿using PxGraf.Models.Responses;
 using PxGraf.Models.Requests;
 using Newtonsoft.Json;
+using System.Net;
 
 namespace Tools.PxUtilsIntegrationTestTool
 {
@@ -42,6 +43,7 @@ namespace Tools.PxUtilsIntegrationTestTool
                 issues = [..strings];
             }
 
+            int waitBetweenRequests = Program.Config.Limits.DelayBetweenRequestsMilliseconds;
             for (int i = 0; i < queries.Length; i++)
             {
                 List<string> queryIssues = [];
@@ -54,12 +56,15 @@ namespace Tools.PxUtilsIntegrationTestTool
                 {
                     string url = ToolsUtilities.GetDataSourceUrl(dataSource);
                     string saveLocation = ResponseSaveLocation.SetResponseSaveLocation(dataSource);
+                    await Task.Delay(waitBetweenRequests);
                     string? visualizationIssue = await StoreSqVisualizationResponse(saveLocation, queries[i], url);
                     if (visualizationIssue != null)
                         queryIssues.Add(visualizationIssue);
+                    await Task.Delay(waitBetweenRequests);
                     string? sqIssue = await StoreSavedQueryResponse(saveLocation, queries[i], url);
                     if (sqIssue != null)
                         queryIssues.Add(sqIssue);
+                    await Task.Delay(waitBetweenRequests);
                     string? sqMetaIssue = await StoreSqMetaResponse(saveLocation, queries[i], url);
                     if (sqMetaIssue != null)
                         queryIssues.Add(sqMetaIssue);
@@ -128,8 +133,20 @@ namespace Tools.PxUtilsIntegrationTestTool
         private static async Task<(QueryMetaResponse?, string)> GetQueryMetaAsync(string url)
         {
             using HttpClient client = new();
-            using HttpResponseMessage response = await client.GetAsync(url);
-            if (!response.IsSuccessStatusCode)
+            HttpResponseMessage response;
+            int tries = 0;
+            do
+            {
+                response = await client.GetAsync(url);
+                tries++;
+                if (response.StatusCode == HttpStatusCode.Accepted)
+                {
+                    Console.WriteLine($"{tries}/{Program.Config.Limits.MaximumAmountOfPendingAttempts} Request accepted but not yet processed for {url}. Retrying...");
+                    await Task.Delay(Program.Config.Limits.DelayBetweenPendingAttemptsMilliseconds);
+                }
+            } while (response.StatusCode == HttpStatusCode.Accepted && tries < Program.Config.Limits.MaximumAmountOfPendingAttempts);
+
+            if (!response.IsSuccessStatusCode || tries >= Program.Config.Limits.MaximumAmountOfPendingAttempts)
             {
                 Console.WriteLine($"Failed to get query meta with status code {response.StatusCode} from {url}");
                 return (null, response.StatusCode.ToString());
@@ -147,8 +164,20 @@ namespace Tools.PxUtilsIntegrationTestTool
         private static async Task<(VisualizationResponse?, string)> GetQueryVisualizationAsync(string url)
         {
             using HttpClient client = new();
-            using HttpResponseMessage response = await client.GetAsync(url);
-            if (!response.IsSuccessStatusCode)
+            HttpResponseMessage response;
+            int tries = 0;
+            do
+            {
+                response = await client.GetAsync(url);
+                tries++;
+                if (response.StatusCode == HttpStatusCode.Accepted)
+                {
+                    Console.WriteLine($"{tries}/{Program.Config.Limits.MaximumAmountOfPendingAttempts} Request accepted but not yet processed for {url}. Retrying...");
+                    await Task.Delay(Program.Config.Limits.DelayBetweenPendingAttemptsMilliseconds);
+                }
+            } while (response.StatusCode == HttpStatusCode.Accepted && tries < Program.Config.Limits.MaximumAmountOfPendingAttempts);
+
+            if (!response.IsSuccessStatusCode || tries >= Program.Config.Limits.MaximumAmountOfPendingAttempts)
             {
                 Console.WriteLine($"Failed to get query visualization with status code {response.StatusCode} from {url}");
                 return (null, response.StatusCode.ToString());
@@ -166,8 +195,20 @@ namespace Tools.PxUtilsIntegrationTestTool
         private static async Task<(SaveQueryParams?, string)> GetSavedQueryAsync(string url)
         {
             using HttpClient client = new();
-            using HttpResponseMessage response = await client.GetAsync(url);
-            if (!response.IsSuccessStatusCode)
+            HttpResponseMessage response;
+            int tries = 0;
+            do
+            {
+                response = await client.GetAsync(url);
+                tries++;
+                if (response.StatusCode == HttpStatusCode.Accepted)
+                {
+                    Console.WriteLine($"{tries}/{Program.Config.Limits.MaximumAmountOfPendingAttempts} Request accepted but not yet processed for {url}. Retrying...");
+                    await Task.Delay(Program.Config.Limits.DelayBetweenPendingAttemptsMilliseconds);
+                }
+            } while (response.StatusCode == HttpStatusCode.Accepted && tries < Program.Config.Limits.MaximumAmountOfPendingAttempts);
+
+            if (!response.IsSuccessStatusCode || tries >= Program.Config.Limits.MaximumAmountOfPendingAttempts)
             {
                 Console.WriteLine($"Failed to get saved query with status code {response.StatusCode} from {url}");
                 return (null, response.StatusCode.ToString());

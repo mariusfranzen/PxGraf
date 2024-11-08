@@ -36,17 +36,35 @@ namespace Tools
         }
     }
 
+    public class Limits
+    {
+        public int DelayBetweenRequestsMilliseconds { get; set; }
+        public int DelayBetweenPendingAttemptsMilliseconds { get; set; }
+        public int MaximumAmountOfPendingAttempts { get; set; }
+
+        public Limits() { }
+
+        public Limits(int delayBetweenRequestsMilliseconds, int delayBetweenPendingAttemptsMilliseconds, int maximumAmountOfPendingAttempts)
+        {
+            DelayBetweenRequestsMilliseconds = delayBetweenRequestsMilliseconds;
+            DelayBetweenPendingAttemptsMilliseconds = delayBetweenPendingAttemptsMilliseconds;
+            MaximumAmountOfPendingAttempts = maximumAmountOfPendingAttempts;
+        }
+    }
+
     public class Configuration
     {
         public Urls Urls { get; set; }
         public Paths Paths { get; set; }
+        public Limits Limits { get; set; }
 
         public Configuration() { }
 
-        public Configuration(Urls urls, Paths paths)
+        public Configuration(Urls urls, Paths paths, Limits limits)
         {
             Urls = urls;
             Paths = paths;
+            Limits = limits;
         }
     }
 
