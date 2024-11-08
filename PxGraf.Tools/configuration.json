@@ -8,5 +8,10 @@
     "ResponseDirectory": "path/to/response/directory",
     "QueriesFile": "path/to/queries/file.txt",
     "ResultsDirectory": "path/to/results/directory"
+  },
+  "Limits": {
+    "DelayBetweenRequestsMilliseconds": 100,
+    "DelayBetweenPendingAttemptsMilliseconds": 1000,
+    "MaximumAmountOfPendingAttempts":  60
   }
 }
