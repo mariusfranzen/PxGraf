@@ -31,13 +31,23 @@ export interface IDatabaseGroupHeader {
 }
 
 /***
+ * Enum for database table errors
+ */
+export enum EDatabaseTableError {
+    null,
+    contentLoad,
+    contentDimensionMissing,
+    timeDimensionMissing,
+}
+
+/***
  * Interface for a px table
  * @property {string} lastUpdated - The last updated date of the table.
- * @property {boolean} error - Flag to indicate if there's an error with the table.
+ * @property {EDatabaseTableError} error - Enum to indicate if there's an error with the table.
  */
 export interface IDatabaseTable extends IDatabaseGroupHeader {
     lastUpdated: string | null;
-    error?: boolean;
+    error?: EDatabaseTableError;
 }
 
 /**

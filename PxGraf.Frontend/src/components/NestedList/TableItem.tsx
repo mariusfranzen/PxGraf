@@ -8,6 +8,7 @@ import styled from "styled-components";
 import { urls } from "Router";
 import { UiLanguageContext } from "contexts/uiLanguageContext";
 import { parseLanguageString } from '../../utils/ApiHelpers';
+import { getErrorText } from "../../utils/editorHelpers";
 
 const StyledListItem = styled(ListItem)`
   background-color: #f8f8f8;
@@ -30,9 +31,9 @@ interface ITableItemProps {
  * @param {number} depth Current browsing depth.
  */
 export const TableItem: React.FC<ITableItemProps> = ({ currentPath, item, depth }) => {
-    const { t } = useTranslation();
     const { language } = React.useContext(UiLanguageContext);
     const displayLanguage = item.languages.includes(language) ? language : item.languages[0];
+    const { t } = useTranslation();
 
     return <React.Fragment key={`${item.code}-key`}>
         <StyledListItem id={currentPath.join('-')}>
@@ -40,7 +41,7 @@ export const TableItem: React.FC<ITableItemProps> = ({ currentPath, item, depth 
                 {item.error ?
                     <ErrorAlert sx={{ pl: depth * 4 }} severity="warning">
                         <AlertTitle>{`${item.name[displayLanguage] ?? item.code}`}</AlertTitle>
-                        {t("error.contentVariableMissing")}
+                        {getErrorText(item.error)}
                     </ErrorAlert>
                     :
                     <React.Fragment>

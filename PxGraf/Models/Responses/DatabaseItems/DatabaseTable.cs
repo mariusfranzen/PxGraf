@@ -6,6 +6,14 @@ using System;
 
 namespace PxGraf.Models.Responses.DatabaseItems
 {
+    public enum DatabaseTableError
+    {
+        Null,
+        ContentLoad,
+        ContentDimensionMissing,
+        TimeDimensionMissing,
+    }
+
     /// <summary>
     /// Represents a px database table.
     /// </summary>
@@ -28,11 +36,11 @@ namespace PxGraf.Models.Responses.DatabaseItems
         /// </summary>
         public List<string> Languages { get; private set; }
         /// <summary>
-        /// Error flag.
+        /// Error identifier
         /// </summary>
 
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public bool? Error { get; private set; } = null;
+        public DatabaseTableError? Error { get; private set; } = null;
 
         public DatabaseTable(string code, MultilanguageString name, DateTime lastUpdated, List<string> languages)
         {
@@ -42,17 +50,17 @@ namespace PxGraf.Models.Responses.DatabaseItems
             Languages = languages;
         }
 
-        private DatabaseTable(string code, MultilanguageString name, List<string> languages)
+        private DatabaseTable(string code, MultilanguageString name, List<string> languages, DatabaseTableError error)
         {
             Code = code;
             Name = name;
             Languages = languages;
-            Error = true;
+            Error = error;
         }
 
-        public static DatabaseTable FromError(string code, MultilanguageString name, List<string> languages)
+        public static DatabaseTable FromError(string code, MultilanguageString name, List<string> languages, DatabaseTableError error)
         {
-            return new DatabaseTable(code, name, languages);
+            return new DatabaseTable(code, name, languages, error);
         }
     }
 }

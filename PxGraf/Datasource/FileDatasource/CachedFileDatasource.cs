@@ -54,25 +54,34 @@ namespace PxGraf.Datasource.FileDatasource
             {
                 IReadOnlyMatrixMetadata meta = await GetMatrixMetadataCachedAsync(reference);
                 DateTime? lastUpdated = meta.GetLastUpdated();
+
                 string tableId = meta.AdditionalProperties.TryGetValue(PxSyntaxConstants.TABLEID_KEY, out MetaProperty? tableIdProperty) &&
                     tableIdProperty is StringProperty stringIdProp ? stringIdProp.Value : Path.GetFileNameWithoutExtension(reference.Name);
-
                 List<string> languages = [.. meta.AvailableLanguages];
                 MultilanguageString name = new(languages.ToDictionary(lang => lang, lang => tableId));
+
+                if (!meta.Dimensions.Any(dim => dim.Type == Px.Utils.Models.Metadata.Enums.DimensionType.Time))
+                {
+                    return DatabaseTable.FromError(tableId, name, languages, DatabaseTableError.TimeDimensionMissing);
+                }
+                else if (!meta.Dimensions.Any(dim => dim.Type == Px.Utils.Models.Metadata.Enums.DimensionType.Content))
+                {
+                    return DatabaseTable.FromError(tableId, name, languages, DatabaseTableError.ContentDimensionMissing);
+                }
+
                 if (meta.AdditionalProperties.TryGetValue(PxSyntaxConstants.DESCRIPTION_KEY, out MetaProperty? descriptionProperty))
                 {
                     if (descriptionProperty is StringProperty sProp) name = new(languages[0], sProp.Value);
                     else if (descriptionProperty is MultilanguageStringProperty mlsProp) name = mlsProp.Value;
                 }
-
                 if (lastUpdated is not null) return new(tableId, name, (DateTime)lastUpdated, languages);
-                else return DatabaseTable.FromError(tableId, name, languages);
+                else return DatabaseTable.FromError(tableId, name, languages, DatabaseTableError.ContentLoad);
             }
             catch (Exception e)
             {
                 _logger.LogError(e, "Failed to get table listing item for {Reference}", reference);
                 MultilanguageString name = new(Configuration.Current.LanguageOptions.Available.ToDictionary(lang => lang, lang => reference.Name));
-                return DatabaseTable.FromError(reference.Name, name, []);
+                return DatabaseTable.FromError(reference.Name, name, [], DatabaseTableError.ContentLoad);
             }
         }
 

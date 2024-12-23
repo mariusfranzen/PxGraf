@@ -4,7 +4,7 @@ import UiLanguageContext from 'contexts/uiLanguageContext';
 import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router-dom';
 import { TableItem } from './TableItem';
-import { IDatabaseTable } from 'api/services/table';
+import { EDatabaseTableError, IDatabaseTable } from 'api/services/table';
 
 jest.mock('react-i18next', () => ({
     ...jest.requireActual('react-i18next'),
@@ -71,15 +71,14 @@ describe('Assertion tests', () => {
         expect(lastUpdate).toBeInTheDocument();
     });
 
-    it('renders MUI alert when error property is true', async () => {
+    it('renders MUI alert when error property is contentDimensionMissing', async () => {
         const mockErrorItem: IDatabaseTable = {
             code: 'error',
             lastUpdated: null,
             name: { 'fi': 'error', 'sv': 'error-sv' },
             languages: ['fi', 'sv'],
-            error: true
+            error: EDatabaseTableError.contentDimensionMissing
         };
-
         const { findByRole, findByText } = render(
             <MemoryRouter>
                 <UiLanguageContext.Provider value={{ language, setLanguage, languageTab, setLanguageTab, availableUiLanguages, uiContentLanguage, setUiContentLanguage }}>
@@ -92,5 +91,54 @@ describe('Assertion tests', () => {
         const alertHeader = await findByText("error");
         expect(alert).toBeInTheDocument();
         expect(alertHeader).toBeInTheDocument();
+        expect(alert).toHaveTextContent("error.contentVariableMissing");
+    });
+
+    it('renders MUI alert when error property is timeDimensionMissing', async () => {
+        const mockErrorItem: IDatabaseTable = {
+            code: 'error',
+            lastUpdated: null,
+            name: { 'fi': 'error', 'sv': 'error-sv' },
+            languages: ['fi', 'sv'],
+            error: EDatabaseTableError.timeDimensionMissing
+        };
+
+        const { findByRole, findByText } = render(
+            <MemoryRouter>
+                <UiLanguageContext.Provider value={{ language, setLanguage, languageTab, setLanguageTab, availableUiLanguages, uiContentLanguage, setUiContentLanguage }}>
+                    <TableItem currentPath={mockPath} item={mockErrorItem} depth={mockDepth} />
+                </UiLanguageContext.Provider>
+            </MemoryRouter>
+        );
+
+        const alert = await findByRole('alert');
+        const alertHeader = await findByText("error");
+        expect(alert).toBeInTheDocument();
+        expect(alertHeader).toBeInTheDocument();
+        expect(alert).toHaveTextContent("error.timeVariableMissing");
+    });
+
+    it('renders MUI alert when error property is default', async () => {
+        const mockErrorItem: IDatabaseTable = {
+            code: 'error',
+            lastUpdated: null,
+            name: { 'fi': 'error', 'sv': 'error-sv' },
+            languages: ['fi', 'sv'],
+            error: EDatabaseTableError.contentLoad
+        };
+
+        const { findByRole, findByText } = render(
+            <MemoryRouter>
+                <UiLanguageContext.Provider value={{ language, setLanguage, languageTab, setLanguageTab, availableUiLanguages, uiContentLanguage, setUiContentLanguage }}>
+                    <TableItem currentPath={mockPath} item={mockErrorItem} depth={mockDepth} />
+                </UiLanguageContext.Provider>
+            </MemoryRouter>
+        );
+
+        const alert = await findByRole('alert');
+        const alertHeader = await findByText("error");
+        expect(alert).toBeInTheDocument();
+        expect(alertHeader).toBeInTheDocument();
+        expect(alert).toHaveTextContent("error.contentLoad");
     });
 });
