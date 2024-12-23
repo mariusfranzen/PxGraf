@@ -60,13 +60,13 @@ namespace PxGraf.Datasource.FileDatasource
                 List<string> languages = [.. meta.AvailableLanguages];
                 MultilanguageString name = new(languages.ToDictionary(lang => lang, lang => tableId));
 
-                if (!meta.Dimensions.Any(dim => dim.Type == Px.Utils.Models.Metadata.Enums.DimensionType.Time))
-                {
-                    return DatabaseTable.FromError(tableId, name, languages, DatabaseTableError.TimeDimensionMissing);
-                }
-                else if (!meta.Dimensions.Any(dim => dim.Type == Px.Utils.Models.Metadata.Enums.DimensionType.Content))
+                if (!meta.Dimensions.Any(dim => dim.Type == Px.Utils.Models.Metadata.Enums.DimensionType.Content))
                 {
                     return DatabaseTable.FromError(tableId, name, languages, DatabaseTableError.ContentDimensionMissing);
+                }
+                else if (!meta.Dimensions.Any(dim => dim.Type == Px.Utils.Models.Metadata.Enums.DimensionType.Time))
+                {
+                    return DatabaseTable.FromError(tableId, name, languages, DatabaseTableError.TimeDimensionMissing);
                 }
 
                 if (meta.AdditionalProperties.TryGetValue(PxSyntaxConstants.DESCRIPTION_KEY, out MetaProperty? descriptionProperty))
@@ -81,6 +81,10 @@ namespace PxGraf.Datasource.FileDatasource
             {
                 _logger.LogError(e, "Failed to get table listing item for {Reference}", reference);
                 MultilanguageString name = new(Configuration.Current.LanguageOptions.Available.ToDictionary(lang => lang, lang => reference.Name));
+                if (e is InvalidOperationException && e.Message == "Content dimension not found in metadata")
+                {
+                    return DatabaseTable.FromError(reference.Name, name, [], DatabaseTableError.ContentDimensionMissing);
+                }
                 return DatabaseTable.FromError(reference.Name, name, [], DatabaseTableError.ContentLoad);
             }
         }
