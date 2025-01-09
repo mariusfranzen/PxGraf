@@ -34,10 +34,9 @@ export interface IDatabaseGroupHeader {
  * Enum for database table errors
  */
 export enum EDatabaseTableError {
-    null,
-    contentLoad,
-    contentDimensionMissing,
-    timeDimensionMissing,
+    contentLoad = 'ContentLoad',
+    contentDimensionMissing = 'ContentDimensionMissing',
+    timeDimensionMissing = 'TimeDimensionMissing',
 }
 
 /***
