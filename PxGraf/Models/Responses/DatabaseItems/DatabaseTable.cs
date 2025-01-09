@@ -6,14 +6,6 @@ using System;
 
 namespace PxGraf.Models.Responses.DatabaseItems
 {
-    public enum DatabaseTableError
-    {
-        Null,
-        ContentLoad,
-        ContentDimensionMissing,
-        TimeDimensionMissing,
-    }
-
     /// <summary>
     /// Represents a px database table.
     /// </summary>
