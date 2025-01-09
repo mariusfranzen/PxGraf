@@ -81,10 +81,6 @@ namespace PxGraf.Datasource.FileDatasource
             {
                 _logger.LogError(e, "Failed to get table listing item for {Reference}", reference);
                 MultilanguageString name = new(Configuration.Current.LanguageOptions.Available.ToDictionary(lang => lang, lang => reference.Name));
-                if (e is InvalidOperationException && e.Message == "Content dimension not found in metadata")
-                {
-                    return DatabaseTable.FromError(reference.Name, name, [], DatabaseTableError.ContentDimensionMissing);
-                }
                 return DatabaseTable.FromError(reference.Name, name, [], DatabaseTableError.ContentLoad);
             }
         }
